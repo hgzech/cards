@@ -5,5 +5,17 @@
       "rules": "firestore.rules",
       "indexes": "firestore.indexes.json"
     }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "highlights",
+      "runtime": "nodejs22",
+      "ignore": ["node_modules", ".git", "*.local"],
+      "predeploy": ["\"$RESOURCE_DIR/node_modules/.bin/tsc\" --project \"$RESOURCE_DIR\""]
+    }
   ]
 }

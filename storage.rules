@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Rules for the whole bucket remimbers.firebasestorage.app. Remimbers itself
+// stores nothing here (25 Oct 2026). If it ever does, its rules must be merged
+// into THIS file, because a bucket has one rules file.
+//
+// Photos live at highlights/{uid}/{uploadId}.jpg.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /highlights/{uid}/{file} {
+      // Only you can see your own photos.
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Only you can add photos to your folder: images under 10 MB, never
+      // overwriting or deleting one (pages are kept so prompts can be re-run).
+      //
+      // Not checked here: the invite list. That would need Storage to read
+      // Firestore, which needs extra permissions and may not work with a
+      // named database. The gap: an uninvited Google account could put
+      // photos in its own folder. It still could not make cards, because
+      // starting card-making needs a Firestore write the invite list guards.
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

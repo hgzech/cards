@@ -62,30 +62,21 @@ function HowToMark({ open, onToggle }: { open: boolean; onToggle: (open: boolean
       <summary>How to mark a page</summary>
       <ul>
         <li>
-          <b>Circle what you want to be asked.</b> The circled words are the answer; the sentence
-          around them becomes the question. One card per circle.
+          <b>Circle what you want to be asked.</b> The circled words become the answer, and the
+          question is built around them. One card per circle.
+        </li>
+        <li>
+          <b>Add a short note if you want to steer it</b>, in your own words. A note is an
+          instruction, never card text. It can say what to ask, or join several circles into one
+          card.
           <div className="example">
-            Circle <i>1879</i> in “By 1879 Wundt had a functioning laboratory” → <i>By what year did
-            Wundt have a functioning laboratory?</i> — 1879
+            e.g. “1st assistant” next to a circled name, or a bracket / “one card” around two
+            circles
           </div>
         </li>
         <li>
-          <b>A note next to a circle says what to ask.</b> It never ends up on the card itself.
-          <div className="example">
-            Circle <i>Cattell</i>, write “1st assistant” beside it → <i>Who was Wundt’s first
-            assistant?</i> — Cattell
-          </div>
-        </li>
-        <li>
-          <b>Bracket two circles and write “1C”</b> to get one card that asks for both.
-          <div className="example">
-            <i>1874</i> + <i>Zürich</i> bracketed, “1C” → <i>When and where did Wundt get his first
-            teaching position?</i> — 1874, Zürich
-          </div>
-        </li>
-        <li>
-          <b>Everything else is ignored:</b> underlines, highlighting, “!”, ticks. Mark as you
-          normally do.
+          <b>Everything else is ignored:</b> underlines, highlighting, ticks. Mark as you normally
+          do.
         </li>
         <li className="dim">Photo tip: one page per photo, flat and well lit.</li>
       </ul>

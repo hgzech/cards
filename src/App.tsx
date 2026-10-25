@@ -52,6 +52,47 @@ function UploadItem({ upload, cards }: { upload: Upload; cards: Card[] }) {
   )
 }
 
+/** The marking system, in the words a reader needs. Mirrors CONVENTION in functions/src/prompt.ts. */
+function HowToMark({ open, onToggle }: { open: boolean; onToggle: (open: boolean) => void }) {
+  return (
+    <details className="guide" open={open} onToggle={(e) => {
+        // The toggle event also fires when React changes `open` itself; only a tap by the reader counts.
+        if (e.currentTarget.open !== open) onToggle(e.currentTarget.open)
+      }}>
+      <summary>How to mark a page</summary>
+      <ul>
+        <li>
+          <b>Circle what you want to be asked.</b> The circled words are the answer; the sentence
+          around them becomes the question. One card per circle.
+          <div className="example">
+            Circle <i>1879</i> in “By 1879 Wundt had a functioning laboratory” → <i>By what year did
+            Wundt have a functioning laboratory?</i> — 1879
+          </div>
+        </li>
+        <li>
+          <b>A note next to a circle says what to ask.</b> It never ends up on the card itself.
+          <div className="example">
+            Circle <i>Cattell</i>, write “1st assistant” beside it → <i>Who was Wundt’s first
+            assistant?</i> — Cattell
+          </div>
+        </li>
+        <li>
+          <b>Bracket two circles and write “1C”</b> to get one card that asks for both.
+          <div className="example">
+            <i>1874</i> + <i>Zürich</i> bracketed, “1C” → <i>When and where did Wundt get his first
+            teaching position?</i> — 1874, Zürich
+          </div>
+        </li>
+        <li>
+          <b>Everything else is ignored:</b> underlines, highlighting, “!”, ticks. Mark as you
+          normally do.
+        </li>
+        <li className="dim">Photo tip: one page per photo, flat and well lit.</li>
+      </ul>
+    </details>
+  )
+}
+
 function Home() {
   const { user, signOutNow } = useAuth()
   const uid = user!.uid
@@ -59,6 +100,8 @@ function Home() {
   const [cards, setCards] = useState<Card[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Guide starts open until there's a first upload; after that the reader's own toggle wins.
+  const [guideOpen, setGuideOpen] = useState<boolean | null>(null)
   const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => watchUploads(uid, setUploads), [uid])
@@ -88,6 +131,7 @@ function Home() {
           Sign out
         </button>
       </header>
+      <HowToMark open={guideOpen ?? uploads.length === 0} onToggle={setGuideOpen} />
       <input ref={input} type="file" accept="image/*" hidden onChange={onPick} />
       <button className="btn btn-primary wide" onClick={() => input.current?.click()} disabled={busy}>
         {busy ? 'Uploading…' : 'Upload a marked page'}

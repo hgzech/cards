@@ -770,3 +770,21 @@ body {
 .upload .card .q { font-weight: 600; }
 .upload .card .a { color: var(--accent); }
 .upload .card .quote { color: var(--text-dim); font-size: 13px; font-style: italic; }
+
+.guide {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.guide summary { cursor: pointer; font-weight: 600; }
+.guide ul { margin: 10px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 10px; }
+.guide .example {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-dim);
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}

@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// Rules for the `highlights` database only. Remimbers' database has its own
+// rules file in its own repo; deploying this one never touches it.
+//
+// These rules are the entire security boundary. The code and the Firebase
+// config are public, so anyone can talk to this database directly. Anything
+// not explicitly allowed below is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function ownEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAllowed() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/allowlist/$(ownEmail()));
+    }
+
+    function isOwner() {
+      let me = get(/databases/$(database)/documents/allowlist/$(ownEmail())).data;
+      return isAllowed() && 'role' in me && me.role == 'owner';
+    }
+
+    // The invite list. This app's own list, separate from Remimbers'.
+    //
+    // - get: anyone signed in may read THEIR OWN entry, so the app can say
+    //   "you're not invited" instead of failing obscurely.
+    // - list: owners only. A plain `allow read` would let any Google account
+    //   page through everyone invited.
+    // - write: owners, except their own entry, so a stray write can't lock
+    //   the owner out. The owner entry is managed from the console.
+    match /allowlist/{email} {
+      allow get: if request.auth != null && email == ownEmail();
+      allow list: if isOwner();
+      allow write: if isOwner() && email != ownEmail();
+    }
+
+    // Everything a user owns (uploads, cards) lives under their uid.
+    // Covers documents BELOW users/{uid}, not users/{uid} itself.
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid
+        && isAllowed();
+    }
+  }
+}

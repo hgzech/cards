@@ -1,0 +1,25 @@
+node_modules
+dist
+dev-dist
+
+# Compiled Cloud Functions output. Anchored with a leading slash on purpose:
+# a bare "lib" pattern matches EVERY directory named lib at any depth, which
+# silently swallowed src/lib and broke the CI build.
+/functions/lib
+
+*.local
+
+# Env files are ignored by default, with two deliberate exceptions:
+# .env.example (template) and .env.production (public Firebase config -
+# see the comment inside it for why committing it is safe).
+.env
+.env.*
+!.env.example
+!.env.production
+
+.firebase
+firebase-debug.log
+.DS_Store
+
+# Local Claude Code scratch (launch configs, session state)
+/.claude/

@@ -66,13 +66,9 @@ function HowToMark({ open, onToggle }: { open: boolean; onToggle: (open: boolean
           question is built around them. One card per circle.
         </li>
         <li>
-          <b>Add a short note if you want to steer it</b>, in your own words. A note is an
-          instruction, never card text. It can say what to ask, or join several circles into one
-          card.
-          <div className="example">
-            e.g. “1st assistant” next to a circled name, or a bracket / “one card” around two
-            circles
-          </div>
+          <b>Add a short note if you want to steer it</b>, in your own words: a few words on what
+          the question should be about, or that several circles belong on one card. A note is an
+          instruction, never card text.
         </li>
         <li>
           <b>Everything else is ignored:</b> underlines, highlighting, ticks. Mark as you normally

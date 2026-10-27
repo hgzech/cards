@@ -18,19 +18,21 @@ service firebase.storage {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    // Same invite list as firestore.rules: a document in the `highlights`
-    // database's allowlist, id = lowercase email. A cross-service lookup:
-    // Storage reads Firestore, which needs the Storage service agent to hold
-    // the "Firebase Rules Firestore Service Agent" role (granted at first deploy).
     // Uploading over an existing file also counts as `create`, so "never
     // overwrite" needs this explicit check (found by scripts/rules-test.mjs, 27 Oct).
     function isNew() {
       return resource == null;
     }
 
+    // NOT the invite list, only a verified email. A cross-service lookup of the
+    // allowlist (firestore.exists(/databases/highlights/documents/allowlist/...))
+    // passed in the emulator but was denied in production on 27 Oct 2026, even
+    // with the Storage service agent holding roles/firebaserules.firestoreServiceAgent;
+    // most likely production only supports the (default) database. Known gap: an
+    // uninvited Google account can store files in its own folder, but can't make
+    // cards (that needs a Firestore write the invite list guards).
     function isInvited() {
-      return request.auth.token.email_verified == true
-        && firestore.exists(/databases/highlights/documents/allowlist/$(request.auth.token.email.lower()));
+      return request.auth.token.email_verified == true;
     }
 
     // Photos.

@@ -1,5 +1,8 @@
-// Tests storage.rules (and its invite-list lookup in the `highlights` database) against
-// local emulators. Never touches the real project (demo- ids are offline-only).
+// Tests storage.rules against local emulators.
+// NOTE (27 Oct 2026): the invite-list lookup passed here but was denied in production
+// (named database), so the live rules only check a verified email. The two "NOT invited"
+// checks below therefore expect SUCCESS: they document the known gap, not a wish.
+// Never touches the real project (demo- ids are offline-only). Needs Java 21+.
 //
 //   firebase emulators:exec --project demo-cards --only firestore,storage "node scripts/rules-test.mjs"
 import { readFileSync } from 'node:fs'
@@ -55,8 +58,8 @@ await check('invited: into someone else\'s folder', false, put(A, 'highlights/ui
 await check('invited: overwrite an existing photo', false, put(A, 'highlights/uidA/u1.jpg', 10, 'image/jpeg'))
 await check('invited: delete own photo', false, A.ref('highlights/uidA/u1.jpg').delete())
 await check('invited: read own PDF page', true, A.ref('highlights/uidA/u2/p3.jpg').getMetadata())
-await check('NOT invited: photo in own folder', false, put(C, 'highlights/uidC/u1.jpg', 10, 'image/jpeg'))
-await check('NOT invited: PDF page in own folder', false, put(C, 'highlights/uidC/u2/p1.jpg', 10, 'image/jpeg'))
+await check('NOT invited: photo in own folder (known gap)', true, put(C, 'highlights/uidC/u1.jpg', 10, 'image/jpeg'))
+await check('NOT invited: PDF page in own folder (known gap)', true, put(C, 'highlights/uidC/u2/p1.jpg', 10, 'image/jpeg'))
 await check('NOT invited: read someone else\'s page', false, C.ref('highlights/uidA/u2/p3.jpg').getMetadata())
 await check('unverified email: photo', false, put(U, 'highlights/uidU/u1.jpg', 10, 'image/jpeg'))
 await check('signed out: photo', false, put(anon, 'highlights/uidA/u9.jpg', 10, 'image/jpeg'))

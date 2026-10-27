@@ -23,3 +23,8 @@ firebase-debug.log
 
 # Local Claude Code scratch (launch configs, session state)
 /.claude/
+
+# Local test PDFs for scripts/harness.html (copied from highlights-toy/pdfs)
+/scripts/harness-pdfs/
+# Emulator logs
+*-debug.log

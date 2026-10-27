@@ -1,30 +1,57 @@
 rules_version = '2';
 
 // Rules for the whole bucket remimbers.firebasestorage.app. Remimbers itself
-// stores nothing here (25 Oct 2026). If it ever does, its rules must be merged
+// stores nothing here (27 Oct 2026). If it ever does, its rules must be merged
 // into THIS file, because a bucket has one rules file.
 //
-// Photos live at highlights/{uid}/{uploadId}.jpg.
+// Layout:
+//   highlights/{uid}/{uploadId}.jpg             a photo of a paper page
+//   highlights/{uid}/{uploadId}/p{N}.jpg        a prepared page of a PDF (what the model saw)
+//   highlights/{uid}/{uploadId}/original.pdf    the PDF itself, if it was 30 MB or less
+//
+// Nothing can be overwritten or deleted from the app: pages are kept so new
+// prompts can be re-run on exactly what the model saw.
 service firebase.storage {
   match /b/{bucket}/o {
 
-    match /highlights/{uid}/{file} {
-      // Only you can see your own photos.
-      allow read: if request.auth != null && request.auth.uid == uid;
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
 
-      // Only you can add photos to your folder: images under 10 MB, never
-      // overwriting or deleting one (pages are kept so prompts can be re-run).
-      //
-      // Not checked here: the invite list. That would need Storage to read
-      // Firestore, which needs extra permissions and may not work with a
-      // named database. The gap: an uninvited Google account could put
-      // photos in its own folder. It still could not make cards, because
-      // starting card-making needs a Firestore write the invite list guards.
-      allow create: if request.auth != null
-        && request.auth.uid == uid
-        && request.auth.token.email_verified == true
+    // Same invite list as firestore.rules: a document in the `highlights`
+    // database's allowlist, id = lowercase email. A cross-service lookup:
+    // Storage reads Firestore, which needs the Storage service agent to hold
+    // the "Firebase Rules Firestore Service Agent" role (granted at first deploy).
+    // Uploading over an existing file also counts as `create`, so "never
+    // overwrite" needs this explicit check (found by scripts/rules-test.mjs, 27 Oct).
+    function isNew() {
+      return resource == null;
+    }
+
+    function isInvited() {
+      return request.auth.token.email_verified == true
+        && firestore.exists(/databases/highlights/documents/allowlist/$(request.auth.token.email.lower()));
+    }
+
+    // Photos.
+    match /highlights/{uid}/{file} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isNew() && isInvited()
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+    }
+
+    // PDF uploads: prepared page images and the original file.
+    match /highlights/{uid}/{uploadId}/{file} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isNew() && isInvited() && (
+        (file.matches('p[0-9]+[.]jpg')
+          && request.resource.contentType == 'image/jpeg'
+          && request.resource.size < 10 * 1024 * 1024)
+        || (file == 'original.pdf'
+          && request.resource.contentType == 'application/pdf'
+          && request.resource.size <= 30 * 1024 * 1024)
+      );
     }
   }
 }

@@ -1,0 +1,15 @@
+<!doctype html>
+<!--
+  Browser check for src/lib/pdfpages.ts (dev only, never built or deployed).
+  1. copy test PDFs into scripts/harness-pdfs/ (gitignored)
+  2. npx vite --port 5179, then open http://localhost:5179/scripts/harness.html
+  Each prepared page lands in a <pre data-label="file.pdf pN"> as a JPEG data URL;
+  body[data-done] is set when finished. scripts/harness-run.sh does it headless.
+-->
+<html>
+  <head><meta charset="utf-8" /><title>pdfpages harness</title></head>
+  <body>
+    <div id="out"></div>
+    <script type="module" src="./harness.ts"></script>
+  </body>
+</html>

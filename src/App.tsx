@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
 import { AuthGate } from './auth/AuthGate'
-import { photoUrl, uploadPage, watchCards, watchUploads, type Card, type Upload } from './lib/uploads'
+import { photoUrl, uploadPage, uploadPdf, watchCards, watchUploads, type Card, type Upload } from './lib/uploads'
 
 function Photo({ path }: { path: string }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -20,14 +20,52 @@ function Photo({ path }: { path: string }) {
   )
 }
 
+/** "what the model saw": the prepared page image, opened in a new tab. */
+function PageLink({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    photoUrl(path).then((u) => live && setUrl(u), () => {})
+    return () => {
+      live = false
+    }
+  }, [path])
+  return url ? (
+    <a className="dim" href={url} target="_blank" rel="noreferrer">
+      what the model saw
+    </a>
+  ) : null
+}
+
+function CardView({ c }: { c: Card }) {
+  return (
+    <div className="card">
+      <div className="q">{c.front}</div>
+      <div className="a">{c.back}</div>
+      <div className="quote">“{c.quote}”</div>
+    </div>
+  )
+}
+
 function UploadItem({ upload, cards }: { upload: Upload; cards: Card[] }) {
-  const mine = cards.filter((c) => c.uploadId === upload.id).sort((a, b) => a.index - b.index)
+  const mine = cards
+    .filter((c) => c.uploadId === upload.id)
+    .sort((a, b) => (a.page ?? 0) - (b.page ?? 0) || a.index - b.index)
   const when = upload.createdAt?.toDate().toLocaleString()
+  const isPdf = upload.kind === 'pdf'
+  const pages = upload.pages ?? []
   return (
     <section className="upload">
       <div className="upload-head">
         <Photo path={upload.storagePath} />
         <div className="upload-meta">
+          {isPdf && <div className="filename">{upload.fileName}</div>}
+          {isPdf && (
+            <div className="dim">
+              {pages.length} marked {pages.length === 1 ? 'page' : 'pages'} of {upload.pageCount}
+              {upload.pdfPath ? '' : ' · PDF too large to keep, pages kept'}
+            </div>
+          )}
           <div>{when ?? 'just now'}</div>
           {upload.status === 'pending' && <div className="status">Making cards…</div>}
           {upload.status === 'error' && <div className="status status-error">Failed: {upload.error}</div>}
@@ -40,14 +78,28 @@ function UploadItem({ upload, cards }: { upload: Upload; cards: Card[] }) {
           )}
         </div>
       </div>
-      {upload.status === 'done' && mine.length === 0 && <p className="dim">No circled text found on this page.</p>}
-      {mine.map((c) => (
-        <div key={c.id} className="card">
-          <div className="q">{c.front}</div>
-          <div className="a">{c.back}</div>
-          <div className="quote">“{c.quote}”</div>
-        </div>
-      ))}
+      {upload.status === 'done' && mine.length === 0 && (
+        <p className="dim">{isPdf ? 'No cards came out of the marked pages.' : 'No circled text found on this page.'}</p>
+      )}
+      {upload.failedPages && upload.failedPages.length > 0 && (
+        <p className="status status-error">Failed on page {upload.failedPages.join(', ')}.</p>
+      )}
+      {isPdf
+        ? pages.map((p) => {
+            const onPage = mine.filter((c) => c.page === p.page)
+            return (
+              <div key={p.page} className="pdf-page">
+                <div className="pdf-page-head">
+                  <span>Page {p.page}</span>
+                  <PageLink path={p.storagePath} />
+                </div>
+                {onPage.map((c) => (
+                  <CardView key={c.id} c={c} />
+                ))}
+              </div>
+            )
+          })
+        : mine.map((c) => <CardView key={c.id} c={c} />)}
     </section>
   )
 }
@@ -74,6 +126,12 @@ function HowToMark({ open, onToggle }: { open: boolean; onToggle: (open: boolean
           <b>Everything else is ignored:</b> underlines, highlighting, ticks. Mark as you normally
           do.
         </li>
+        <li>
+          <b>In a PDF</b> (Zotero, Preview, …): <b>highlight in blue</b> what you want to be
+          asked (or circle it with the pen). One card per highlight. A comment on the highlight,
+          or a note next to it, steers it like a margin note. Other colours are ignored. In
+          Zotero, use File → Export PDF so the marks are inside the file.
+        </li>
         <li className="dim">Photo tip: one page per photo, flat and well lit.</li>
       </ul>
     </details>
@@ -85,7 +143,7 @@ function Home() {
   const uid = user!.uid
   const [uploads, setUploads] = useState<Upload[]>([])
   const [cards, setCards] = useState<Card[]>([])
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null) // progress text while uploading
   const [error, setError] = useState<string | null>(null)
   // Guide starts open until there's a first upload; after that the reader's own toggle wins.
   const [guideOpen, setGuideOpen] = useState<boolean | null>(null)
@@ -98,15 +156,17 @@ function Home() {
     const file = e.target.files?.[0]
     e.target.value = '' // allow picking the same file again
     if (!file) return
-    setBusy(true)
+    setBusy('Uploading…')
     setError(null)
     try {
-      await uploadPage(uid, file)
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+      if (isPdf) await uploadPdf(uid, file, setBusy)
+      else await uploadPage(uid, file)
     } catch (err) {
-      setError(String(err))
+      setError(err instanceof Error ? err.message : String(err))
       console.error('[cards] upload failed', err)
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
@@ -119,9 +179,9 @@ function Home() {
         </button>
       </header>
       <HowToMark open={guideOpen ?? uploads.length === 0} onToggle={setGuideOpen} />
-      <input ref={input} type="file" accept="image/*" hidden onChange={onPick} />
-      <button className="btn btn-primary wide" onClick={() => input.current?.click()} disabled={busy}>
-        {busy ? 'Uploading…' : 'Upload a marked page'}
+      <input ref={input} type="file" accept="image/*,application/pdf,.pdf" hidden onChange={onPick} />
+      <button className="btn btn-primary wide" onClick={() => input.current?.click()} disabled={busy != null}>
+        {busy ?? 'Upload a marked page or PDF'}
       </button>
       {error && <pre className="diag">{error}</pre>}
       {uploads.map((u) => (

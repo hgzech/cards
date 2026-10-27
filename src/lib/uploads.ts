@@ -15,8 +15,13 @@ const storage = getStorage(app)
 
 export interface Upload {
   id: string
-  storagePath: string
+  kind?: 'pdf' // absent = photo
+  storagePath: string // photo; for a PDF the first prepared page (thumbnail)
   fileName: string
+  pages?: { page: number; storagePath: string }[] // PDF: one prepared image per marked page
+  pageCount?: number // PDF: pages in the whole file
+  pdfPath?: string | null // PDF: the original file, if it was small enough to keep
+  failedPages?: number[]
   status: 'pending' | 'done' | 'error'
   error?: string
   cardCount?: number
@@ -33,6 +38,7 @@ export interface Card {
   back: string
   quote: string
   uploadId: string
+  page?: number // PDF only, 1-based
   index: number
   model: string
   promptVersion: string
@@ -79,6 +85,82 @@ export async function uploadPage(uid: string, file: File): Promise<string> {
     createdAt: serverTimestamp(),
   })
   return uploadRef.id
+}
+
+/** Keep the original PDF only up to this size (decided 27 Oct 2026). Page images are always kept. */
+export const PDF_KEEP_MAX_BYTES = 30 * 1024 * 1024
+/** Most marked pages per PDF upload. Same limit in the function. */
+export const MAX_PDF_PAGES = 50
+
+const canvasToJpeg = (c: HTMLCanvasElement) =>
+  new Promise<Blob>((resolve, reject) =>
+    c.toBlob((b) => (b ? resolve(b) : reject(new Error('could not encode page'))), 'image/jpeg', 0.9),
+  )
+
+/**
+ * A PDF annotated in a reading app (Zotero, Preview, ...):
+ * 1. find the pages with a card mark (blue highlight or pen circle) — nothing else is sent;
+ * 2. prepare each one in the browser (src/lib/pdfpages.ts: other marks hidden, comments
+ *    written into the margin) and store it as a JPEG, exactly what the model will see;
+ * 3. store the original PDF too, unless it's over 30 MB;
+ * 4. write the upload document, which starts card-making on the server.
+ * pdf.js is loaded only here, so photo-only use doesn't download it.
+ */
+export async function uploadPdf(uid: string, file: File, onProgress: (msg: string) => void): Promise<string> {
+  onProgress('Reading the PDF…')
+  const [pdfjs, { default: workerUrl }, pp] = await Promise.all([
+    import('pdfjs-dist'),
+    import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+    import('./pdfpages'),
+  ])
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+  const loading = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+  const pdf = await loading.promise
+  try {
+    const marked = await pp.markedPages(pdf)
+    if (marked.length === 0) {
+      throw new Error(
+        `No ${pp.CARD_COLOUR} highlights or pen circles found in this PDF, so there's nothing to make cards from.`,
+      )
+    }
+    if (marked.length > MAX_PDF_PAGES) {
+      throw new Error(`${marked.length} marked pages; at most ${MAX_PDF_PAGES} per upload for now.`)
+    }
+
+    const uploadRef = doc(collection(db, 'users', uid, 'uploads'))
+    const folder = `highlights/${uid}/${uploadRef.id}`
+    const makeCanvas = (w: number, h: number) => Object.assign(document.createElement('canvas'), { width: w, height: h })
+    const pages: { page: number; storagePath: string }[] = []
+    for (const [k, pno] of marked.entries()) {
+      onProgress(`Preparing marked page ${k + 1} of ${marked.length}…`)
+      const canvas = (await pp.renderPage(pdf, pno, makeCanvas)) as HTMLCanvasElement
+      const storagePath = `${folder}/p${pno + 1}.jpg`
+      await uploadBytes(ref(storage, storagePath), await canvasToJpeg(canvas), { contentType: 'image/jpeg' })
+      pages.push({ page: pno + 1, storagePath })
+    }
+
+    let pdfPath: string | null = null
+    if (file.size <= PDF_KEEP_MAX_BYTES) {
+      onProgress('Keeping a copy of the PDF…')
+      pdfPath = `${folder}/original.pdf`
+      await uploadBytes(ref(storage, pdfPath), file, { contentType: 'application/pdf' })
+    }
+
+    await setDoc(uploadRef, {
+      kind: 'pdf',
+      fileName: file.name,
+      storagePath: pages[0].storagePath,
+      pages,
+      pageCount: pdf.numPages,
+      pdfPath,
+      pdfBytes: file.size,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    })
+    return uploadRef.id
+  } finally {
+    await loading.destroy() // frees the worker's memory for this file
+  }
 }
 
 export function watchUploads(uid: string, cb: (u: Upload[]) => void) {

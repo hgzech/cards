@@ -1,5 +1,6 @@
-import * as pdfjs from 'pdfjs-dist'
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+// Same (legacy) build as src/lib/uploads.ts.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { markedPages, renderPage } from '../src/lib/pdfpages'
 
 // Same worker setup as src/lib/uploads.ts, so this exercises the real browser path.

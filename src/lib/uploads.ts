@@ -105,12 +105,16 @@ const canvasToJpeg = (c: HTMLCanvasElement) =>
  * 3. store the original PDF too, unless it's over 30 MB;
  * 4. write the upload document, which starts card-making on the server.
  * pdf.js is loaded only here, so photo-only use doesn't download it.
+ *
+ * The LEGACY build on purpose: the modern one uses the JS `Iterator` global at load
+ * time, which Safari lacked ("Can't find variable: Iterator", 27 Oct 2026). Legacy
+ * polyfills it. Main script and worker must come from the same build.
  */
 export async function uploadPdf(uid: string, file: File, onProgress: (msg: string) => void): Promise<string> {
   onProgress('Reading the PDF…')
   const [pdfjs, { default: workerUrl }, pp] = await Promise.all([
-    import('pdfjs-dist'),
-    import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+    import('pdfjs-dist/legacy/build/pdf.mjs'),
+    import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
     import('./pdfpages'),
   ])
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
